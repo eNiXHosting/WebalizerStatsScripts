@@ -6,40 +6,55 @@ LOGDIR=logs
 STATDIR=stats
 export LANG=fr_FR
 
+if [ u"$1" != u ]; then
+    LOGFILE="$1"
+fi
+
+if [ ! -f "$LOGFILE" ]; then
+    echo "$LOGFILE does not exist"
+    exit 1
+fi
+
 CONFFILE=`/usr/local/sbin/gendomainsplit`
 
 for DIR in `grep -v __DEFAULT__ $CONFFILE | cut -f 1 -d ":" | sort -u | xargs -n 1 dirname | sed "s/\/$LOGDIR\$//g"`; do
-	if ! [ -d "$DIR" ]; then continue; fi
-	if ! [ -d "$DIR/$LOGDIR" ]; then
-                echo "$DIR/$LOGDIR not exist, trying to create it"
-		mkdir "$DIR/$LOGDIR"
-		chmod 750 "$DIR/$LOGDIR"
-		chown `stat -c%u "$DIR/."` "$DIR/$LOGDIR"
-	fi
-	if ! [ -d "$DIR/$STATDIR" ]; then
-                echo "$DIR/$STATDIR not exist, trying to create it"
-		mkdir "$DIR/$STATDIR"
-		chmod 750 "$DIR/$STATDIR"
-		chown `stat -c%u "$DIR/."`.www-data "$DIR/$STATDIR"
-	fi
+    if ! [ -d "$DIR" ]; then continue; fi
+    if ! [ -d "$DIR/$LOGDIR" ]; then
+        echo "$DIR/$LOGDIR not exist, trying to create it"
+	mkdir "$DIR/$LOGDIR"
+	chmod 750 "$DIR/$LOGDIR"
+	chown `stat -c%u "$DIR/."` "$DIR/$LOGDIR"
+    fi
+    if ! [ -d "$DIR/$STATDIR" ]; then
+        echo "$DIR/$STATDIR not exist, trying to create it"
+	mkdir "$DIR/$STATDIR"
+	chmod 750 "$DIR/$STATDIR"
+	chown `stat -c%u "$DIR/."`.www-data "$DIR/$STATDIR"
+    fi
 done
 
-/usr/local/sbin/splitlog.py -c $CONFFILE -d / -i $LOGFILE
+CAT=cat
+if `echo "$LOGFILE" | grep -q -E '.*\.gz$'`; then
+    CAT=zcat
+elif `echo "$LOGFILE" | grep -q -E '.*\.bz2$'`; then
+    CAT=bzcat
+fi
+$CAT "$LOGFILE" | /usr/local/sbin/splitlog.py -c $CONFFILE -d /
 
 for LOGF in `grep -v __DEFAULT__ $CONFFILE | cut -f 1 -d ":" | sort -u`; do
-	DIR=`dirname $(dirname $LOGF)`
-	SITE=`basename $DIR`
-	if ! [ -d $DIR ]; then continue; fi
-	echo "--- Processing $SITE"
-	if [ -d "$DIR/stats" ]; then
-		IALIAS=`cat $CONFFILE | grep -E "^$LOGF:" | sed "s/^.*:\(.*\)/ -r \1/g"`
-		echo "--- Using $LOGF"
-		cat $LOGF | webazolver -N 50 -o $DIR/stats -
-		cat $LOGF | webalizer $IALIAS -p -o $DIR/stats -n $SITE -
-		echo Processing $SITE : Done
-		chmod 750 "$DIR/$LOGDIR"
-		chown -R `stat -c%u "$DIR/."`.www-data "$DIR/$STATDIR"
-	fi
+    DIR=`dirname $(dirname $LOGF)`
+    SITE=`basename $DIR`
+    if ! [ -d $DIR ]; then continue; fi
+    echo "--- Processing $SITE"
+    if [ -d "$DIR/stats" ]; then
+	IALIAS=`cat $CONFFILE | grep -E "^$LOGF:" | sed "s/^.*:\(.*\)/ -r \1/g"`
+	echo "--- Using $LOGF"
+	cat $LOGF | webazolver -N 50 -o $DIR/stats -
+	cat $LOGF | webalizer $IALIAS -p -o $DIR/stats -n $SITE -
+	echo Processing $SITE : Done
+	chmod 750 "$DIR/$LOGDIR"
+	chown -R `stat -c%u "$DIR/."`.www-data "$DIR/$STATDIR"
+    fi
 done
 
 rm $CONFFILE
