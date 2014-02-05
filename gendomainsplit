@@ -1,0 +1,36 @@
+#!/bin/sh
+
+BASEDIR=/home
+LOGDIR=logs
+CONFFILE=/tmp/CONFFILEFORCLFDOMAINSPLIT-`date +"%Y%m%d"`-$RANDOM
+
+for DIR in $BASEDIR/www*/*; do
+	if [ -L $DIR ]; then # Site alias
+		STAT=`stat -c%N "$DIR"`
+		TARGET=`readlink -f $DIR` 
+		if `dirname "$TARGET" | grep -q -E "^$BASEDIR/www[^/]*\$"`; then
+			REALSITE=`basename $TARGET`
+			LOGF="$TARGET/logs/$REALSITE.log"
+			SITE=`basename $DIR`
+			echo "$LOGF:$SITE"
+			DOMAIN=`echo $SITE | sed 's|www\.\(.*\)|\1|g'`
+			if [ "$DOMAIN" != "$SITE" ]; then
+				echo "$LOGF:$DOMAIN"
+			fi
+			continue
+		fi
+	fi
+	if [ -d $DIR ] || [ -L $DIR ]; then 
+		SITE=`basename $DIR`
+		LOGF="$DIR/logs/$SITE.log"
+		echo "$LOGF:$SITE"
+		DOMAIN=`echo $SITE | sed 's|www\.\(.*\)|\1|g'`
+		if [ "$DOMAIN" != "$SITE" ]; then
+			echo "$LOGF:$DOMAIN"
+		fi
+	fi
+done > $CONFFILE
+
+echo "/var/log/apache2/DEFAULT.log:__DEFAULT__" >> $CONFFILE
+
+echo $CONFFILE

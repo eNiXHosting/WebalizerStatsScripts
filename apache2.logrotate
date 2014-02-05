@@ -1,0 +1,26 @@
+# Put this file il /etc/logrotate.d
+
+/home/www*/*/logs/*.log {
+        weekly
+        missingok
+        rotate 52
+        compress
+        notifempty
+}
+
+/var/log/apache2/*.log {
+        daily
+        missingok
+        rotate 100
+        compress
+        delaycompress
+        notifempty
+        create 640 root adm
+        sharedscripts
+        postrotate
+                if [ -f "`. /etc/apache2/envvars ; echo ${APACHE_PID_FILE:-/var/run/apache2.pid}`" ]; then
+                        /etc/init.d/apache2 reload > /dev/null
+                fi
+                /usr/local/sbin/run_analog
+        endscript
+}
